@@ -20,6 +20,7 @@
  * External dependencies
  */
 import classnames from 'classnames';
+import { identity } from 'lodash';
 
 /**
  * WordPress dependencies
@@ -36,31 +37,29 @@ import {
 	getChartDifferenceArrow,
 	calculateDifferenceBetweenChartValues,
 } from '../../../util';
-import { partitionReport } from '../../../util/partition-report';
+import { partitionAnalytics4Report } from './partition-report';
 import parseDimensionStringToDate from '../../analytics/util/parseDimensionStringToDate';
 
 /**
- * Reduces and processes an array of analytics row data.
+ * Reduces and processes an array of analytics-4 row data.
  *
- * @since n.e.x.t
+ * @since 1.96.0
  *
- * @param {Array}  rows                 An array of rows to reduce.
- * @param {number} selectedMetricsIndex The index of metrics array in the metrics set.
- * @param {number} selectedStats        The currently selected stat we need to return data for.
+ * @param {Array}  rows          An array of rows to reduce.
+ * @param {number} selectedStats The currently selected stat we need to return data for.
  * @return {Array} Array of selected stats from analytics row data.
  */
-function reduceAnalyticsRowsData( rows, selectedMetricsIndex, selectedStats ) {
+function reduceAnalytics4RowsData( rows, selectedStats ) {
 	const dataMap = [];
 	rows.forEach( ( row ) => {
 		if ( ! row.metricValues ) {
 			return;
 		}
 
-		const { value } =
-			row.metricValues[ selectedMetricsIndex ] || row.metricValues[ 0 ];
+		const { value } = row.metricValues[ selectedStats ];
 		const dateString = row.dimensionValues[ 0 ].value;
 		const date = parseDimensionStringToDate( dateString );
-		dataMap.push( [ date, value[ selectedStats ] ] );
+		dataMap.push( [ date, value ] );
 	} );
 	return dataMap;
 }
@@ -68,30 +67,28 @@ function reduceAnalyticsRowsData( rows, selectedMetricsIndex, selectedStats ) {
 /**
  * Extracts the data required from an analytics 'site-analytics' request.
  *
- * @since n.e.x.t
+ * @since 1.96.0
+ * @since 1.98.0 Added chartDataFormats parameter.
  *
- * @param {Object} report                   The data returned from the Analytics API call.
- * @param {Array}  selectedStats            The currently selected stat we need to return data for.
- * @param {number} days                     The number of days to extract data for. Pads empty data days.
- * @param {number} currentMonthMetricIndex  The index of the current month metrics in the metrics set.
- * @param {number} previousMonthMetricIndex The index of the last month metrics in the metrics set.
- * @param {Array}  dataLabels               The labels to be displayed.
- * @param {Array}  dataFormats              The formats to be used for the data.
+ * @param {Object} report             The data returned from the Analytics API call.
+ * @param {Array}  selectedStats      The currently selected stat we need to return data for.
+ * @param {number} days               The number of days to extract data for. Pads empty data days.
+ * @param {Array}  dataLabels         The labels to be displayed.
+ * @param {Array}  tooltipDataFormats The formats to be used for the tooltip data.
+ * @param {Array}  chartDataFormats   The formats to be used for the chart data.
  * @return {Array} The dataMap ready for charting.
  */
 export function extractAnalytics4DashboardData(
 	report,
 	selectedStats,
 	days,
-	currentMonthMetricIndex = 0,
-	previousMonthMetricIndex = 0,
 	dataLabels = [
 		__( 'Users', 'google-site-kit' ),
 		__( 'Sessions', 'google-site-kit' ),
-		__( 'Engaged Sessions %', 'google-site-kit' ),
+		__( 'Engagement Rate', 'google-site-kit' ),
 		__( 'Session Duration', 'google-site-kit' ),
 	],
-	dataFormats = [
+	tooltipDataFormats = [
 		( x ) => parseFloat( x ).toLocaleString(),
 		( x ) => parseFloat( x ).toLocaleString(),
 		( x ) =>
@@ -101,13 +98,10 @@ export function extractAnalytics4DashboardData(
 				maximumFractionDigits: 2,
 			} ),
 		( x ) => numFmt( x, 's' ),
-	]
+	],
+	chartDataFormats = [ identity, identity, ( x ) => x * 100, identity ]
 ) {
-	if ( ! Array.isArray( report?.rows ) ) {
-		return false;
-	}
-
-	const rows = [ ...report.rows ]; // Copying it to escape side effects by manipulating with rows.
+	const rows = [ ...( report?.rows || [] ) ]; // Copying it to escape side effects by manipulating with rows.
 	const rowLength = rows.length;
 
 	// Pad rows to 2 x number of days data points to accommodate new accounts.
@@ -124,19 +118,56 @@ export function extractAnalytics4DashboardData(
 				day;
 
 			if ( i > rowLength ) {
-				const emptyWeek = {
-					dimensionValues: [
-						{
-							value: dateString,
-						},
-					],
-					metricValues: [ { value: 0 }, { value: 0 } ],
-				};
-				rows.unshift( emptyWeek );
+				const emptyDay = [
+					{
+						dimensionValues: [
+							{
+								value: dateString,
+							},
+							{
+								value: 'date_range_0',
+							},
+						],
+						metricValues: [ { value: 0 }, { value: 0 } ],
+					},
+					{
+						dimensionValues: [
+							{
+								value: dateString,
+							},
+							{
+								value: 'date_range_1',
+							},
+						],
+						metricValues: [ { value: 0 }, { value: 0 } ],
+					},
+				];
+				rows.unshift( ...emptyDay );
 			}
 			date.setDate( date.getDate() - 1 );
 		}
-		rows.push( [ 0, 0 ] );
+		rows.push(
+			{
+				dimensionValues: [
+					{
+						value: '0',
+					},
+					{
+						value: 'date_range_0',
+					},
+				],
+			},
+			{
+				dimensionValues: [
+					{
+						value: '0',
+					},
+					{
+						value: 'date_range_1',
+					},
+				],
+			}
+		);
 	}
 
 	const isSessionDuration =
@@ -156,17 +187,15 @@ export function extractAnalytics4DashboardData(
 		],
 	];
 
-	const { compareRange, currentRange } = partitionReport( rows, {
+	const { compareRange, currentRange } = partitionAnalytics4Report( rows, {
 		dateRangeLength: days,
 	} );
-	const lastMonthData = reduceAnalyticsRowsData(
+	const lastMonthData = reduceAnalytics4RowsData(
 		currentRange,
-		currentMonthMetricIndex,
 		selectedStats
 	);
-	const previousMonthData = reduceAnalyticsRowsData(
+	const previousMonthData = reduceAnalytics4RowsData(
 		compareRange,
-		previousMonthMetricIndex,
 		selectedStats
 	);
 
@@ -182,10 +211,16 @@ export function extractAnalytics4DashboardData(
 			return;
 		}
 
-		const prevMonth = parseFloat( previousMonthData[ i ][ 1 ] );
+		const chartDataFormat = chartDataFormats[ selectedStats ];
+		const currentMonthDatum = chartDataFormat( row[ 1 ] );
+		const previousMonthDatum = chartDataFormat(
+			previousMonthData[ i ][ 1 ]
+		);
+
+		const prevMonth = parseFloat( previousMonthDatum );
 
 		const difference = calculateDifferenceBetweenChartValues(
-			row[ 1 ],
+			currentMonthDatum,
 			prevMonth
 		);
 		const svgArrow = getChartDifferenceArrow( difference );
@@ -211,7 +246,7 @@ export function extractAnalytics4DashboardData(
 				'google-site-kit'
 			),
 			dataLabels[ selectedStats ],
-			dataFormats[ selectedStats ]( row[ 1 ] ),
+			tooltipDataFormats[ selectedStats ]( currentMonthDatum ),
 			svgArrow,
 			numFmt( Math.abs( difference ), '%' )
 		);
@@ -225,10 +260,12 @@ export function extractAnalytics4DashboardData(
 				<p>${ dateRange }</p>
 				<p>${ statInfo }</p>
 			</div>`,
-			isSessionDuration ? convertSecondsToArray( row[ 1 ] ) : row[ 1 ],
 			isSessionDuration
-				? convertSecondsToArray( previousMonthData[ i ][ 1 ] )
-				: previousMonthData[ i ][ 1 ],
+				? convertSecondsToArray( currentMonthDatum )
+				: currentMonthDatum,
+			isSessionDuration
+				? convertSecondsToArray( previousMonthDatum )
+				: previousMonthDatum,
 		] );
 	} );
 

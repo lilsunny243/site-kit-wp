@@ -317,8 +317,27 @@ class AnalyticsTest extends TestCase {
 		);
 	}
 
+	public function test_get_datapoints__ga4Reporting() {
+		$this->enable_feature( 'ga4Reporting' );
+
+		$analytics = new Analytics( new Context( GOOGLESITEKIT_PLUGIN_MAIN_FILE ) );
+
+		$this->assertEqualSets(
+			array(
+				// create-account-ticket, 'create-property' and 'create-profile' not available.
+				'goals',
+				'accounts-properties-profiles',
+				'properties-profiles',
+				'profiles',
+				'report',
+			),
+			$analytics->get_datapoints()
+		);
+	}
+
 	public function test_handle_provisioning_callback() {
-		$analytics = new Analytics( new Context( GOOGLESITEKIT_PLUGIN_MAIN_FILE, new MutableInput() ) );
+		$context   = new Context( GOOGLESITEKIT_PLUGIN_MAIN_FILE, new MutableInput() );
+		$analytics = new Analytics( $context );
 
 		$admin_id = $this->factory()->user->create( array( 'role' => 'administrator' ) );
 		wp_set_current_user( $admin_id );
@@ -335,7 +354,7 @@ class AnalyticsTest extends TestCase {
 			2
 		);
 
-		$analytics_module_page_url   = add_query_arg( 'page', 'googlesitekit-module-analytics', admin_url( 'admin.php' ) );
+		$dashboard_url               = $context->admin_url();
 		$account_ticked_id_transient = Analytics::PROVISION_ACCOUNT_TICKET_ID . '::' . get_current_user_id();
 
 		$_GET['gatoscallback']   = '1';
@@ -351,7 +370,7 @@ class AnalyticsTest extends TestCase {
 			$this->fail( 'Expected redirect to module page with "account_ticket_id_mismatch" error' );
 		} catch ( RedirectException $redirect ) {
 			$this->assertEquals(
-				add_query_arg( 'error_code', 'account_ticket_id_mismatch', $analytics_module_page_url ),
+				add_query_arg( 'error_code', 'account_ticket_id_mismatch', $dashboard_url ),
 				$redirect->get_location()
 			);
 		}
@@ -364,7 +383,7 @@ class AnalyticsTest extends TestCase {
 			$this->fail( 'Expected redirect to module page with "user_cancel" error' );
 		} catch ( RedirectException $redirect ) {
 			$this->assertEquals(
-				add_query_arg( 'error_code', 'user_cancel', $analytics_module_page_url ),
+				add_query_arg( 'error_code', 'user_cancel', $dashboard_url ),
 				$redirect->get_location()
 			);
 			// Ensure transient was deleted by the method despite error.
@@ -381,7 +400,7 @@ class AnalyticsTest extends TestCase {
 			$this->fail( 'Expected redirect to module page with "callback_missing_parameter" error' );
 		} catch ( RedirectException $redirect ) {
 			$this->assertEquals(
-				add_query_arg( 'error_code', 'callback_missing_parameter', $analytics_module_page_url ),
+				add_query_arg( 'error_code', 'callback_missing_parameter', $dashboard_url ),
 				$redirect->get_location()
 			);
 			// Ensure transient was deleted by the method despite error.
@@ -455,10 +474,11 @@ class AnalyticsTest extends TestCase {
 	 * @param \Closure $assert_opt_out_presence
 	 * @param bool $is_content_creator
 	 */
-	public function test_tracking_disabled( $settings, $logged_in, $assert_opt_out_presence, $is_content_creator = false ) {
+	public function test_tracking_disabled( $settings, $logged_in, $is_tracking_active, $is_content_creator = false ) {
 		wp_scripts()->registered = array();
 		wp_scripts()->queue      = array();
 		wp_scripts()->done       = array();
+		wp_styles(); // Prevent potential ->queue of non-object error.
 		remove_all_actions( 'wp_enqueue_scripts' );
 		// Remove irrelevant script from throwing errors in CI from readfile().
 		remove_action( 'wp_head', 'print_emoji_detection_script', 7 );
@@ -490,7 +510,24 @@ class AnalyticsTest extends TestCase {
 			$this->assertStringNotContainsString( 'ga-disable', $head_html );
 		}
 
-		$assert_opt_out_presence( $head_html );
+		if ( $is_tracking_active ) {
+			// When tracking is active, the opt out snippet should not be present.
+			$this->assertStringNotContainsString( 'window["ga-disable-UA-21234567-8"] = true', $head_html );
+
+			// When tracking is active, the `googlesitekit_analytics_tracking_opt_out` action should not be called.
+			$this->assertEquals( 0, did_action( 'googlesitekit_analytics_tracking_opt_out' ) );
+		} else {
+			if ( empty( $settings['propertyID'] ) ) {
+				// When propertyID is not set, the opt out snippet should not be present.
+				$this->assertStringNotContainsString( 'window["ga-disable-', $head_html );
+			} else {
+				// When tracking is disabled and propertyID is set, the opt out snippet should be present.
+				$this->assertStringContainsString( 'window["ga-disable-UA-21234567-8"] = true', $head_html );
+			}
+
+			// When tracking is disabled, the `googlesitekit_analytics_tracking_opt_out` action should be called.
+			$this->assertEquals( 1, did_action( 'googlesitekit_analytics_tracking_opt_out' ) );
+		}
 	}
 
 	public function tracking_disabled_provider() {
@@ -503,64 +540,70 @@ class AnalyticsTest extends TestCase {
 			'trackingDisabled'      => array( 'loggedinUsers' ),
 		);
 
-		$assert_contains_opt_out     = function ( $html ) {
-			$this->assertStringContainsString( 'window["ga-disable-UA-21234567-8"] = true', $html );
-		};
-		$assert_not_contains_opt_out = function ( $html ) {
-			$this->assertStringNotContainsString( 'window["ga-disable-UA-21234567-8"] = true', $html );
-		};
-
 		return array(
 			// Tracking is active by default for non-logged-in users.
 			array(
 				$base_settings,
 				false,
-				$assert_not_contains_opt_out,
+				true,
 			),
 			// Tracking is not active for non-logged-in users if snippet is disabled,
 			// but opt-out is not added because tracking is not disabled.
 			array(
 				array_merge( $base_settings, array( 'useSnippet' => false ) ),
 				false,
-				$assert_not_contains_opt_out,
+				true,
 			),
 			// Tracking is not active for logged-in users by default (opt-out expected).
 			array(
 				$base_settings,
 				true,
-				$assert_contains_opt_out,
+				false,
 			),
 			// Tracking is active for logged-in users if enabled via settings.
 			array(
 				array_merge( $base_settings, array( 'trackingDisabled' => array() ) ),
 				true,
-				$assert_not_contains_opt_out,
+				true,
 			),
 			// Tracking is not active for content creators if disabled via settings.
 			array(
 				array_merge( $base_settings, array( 'trackingDisabled' => array( 'contentCreators' ) ) ),
 				true,
-				$assert_contains_opt_out,
+				false,
 				true,
 			),
 			// Tracking is still active for guests if disabled for logged in users.
 			array(
 				array_merge( $base_settings, array( 'trackingDisabled' => array( 'loggedinUsers' ) ) ),
 				false,
-				$assert_not_contains_opt_out,
+				true,
 			),
 			// Tracking is not active for content creators if disabled for logged-in users (logged-in users setting overrides content creators setting)
 			array(
 				array_merge( $base_settings, array( 'trackingDisabled' => array( 'loggedinUsers' ) ) ),
 				true,
-				$assert_contains_opt_out,
+				false,
+				true,
+			),
+			// Analytics is enabled and tracking is disabled for logged-in users but property is not configured
+			array(
+				array_merge(
+					$base_settings,
+					array(
+						'trackingDisabled' => array( 'loggedinUsers' ),
+						'propertyID'       => '',
+					)
+				),
+				true,
+				false,
 				true,
 			),
 			// Analytics is enabled but not configured.
 			array(
 				array_merge( $base_settings, array( 'propertyID' => '' ) ),
 				false,
-				$assert_not_contains_opt_out,
+				true,
 				false,
 			),
 		);
@@ -783,6 +826,37 @@ class AnalyticsTest extends TestCase {
 		$this->assertEquals( $configuration['ua_property_id'], $settings['propertyID'] );
 		$this->assertEquals( $configuration['ua_internal_web_property_id'], $settings['internalWebPropertyID'] );
 		$this->assertEquals( $configuration['ua_profile_id'], $settings['profileID'] );
+	}
+
+	public function test_get_debug_fields() {
+		$analytics = new Analytics( new Context( GOOGLESITEKIT_PLUGIN_MAIN_FILE ) );
+
+		$this->assertEqualSets(
+			array(
+				'analytics_account_id',
+				'analytics_property_id',
+				'analytics_profile_id',
+				'analytics_use_snippet',
+			),
+			array_keys( $analytics->get_debug_fields() )
+		);
+	}
+
+	public function test_get_debug_fields__ga4Reporting() {
+		$this->enable_feature( 'ga4Reporting' );
+
+		$analytics = new Analytics( new Context( GOOGLESITEKIT_PLUGIN_MAIN_FILE ) );
+
+		$this->assertEqualSets(
+			array(
+				'analytics_dashboard_view',
+				'analytics_account_id',
+				'analytics_property_id',
+				'analytics_profile_id',
+				'analytics_use_snippet',
+			),
+			array_keys( $analytics->get_debug_fields() )
+		);
 	}
 
 	/**

@@ -24,6 +24,7 @@ import { MODULES_ANALYTICS_4 } from '../../../analytics-4/datastore/constants';
 import {
 	provideModules,
 	provideSiteInfo,
+	provideUserAuthentication,
 } from '../../../../../../tests/js/utils';
 import { replaceValuesInAnalytics4ReportWithZeroData } from '../../../../../../.storybook/utils/zeroReports';
 import { withWidgetComponentProps } from '../../../../googlesitekit/widgets/util';
@@ -58,7 +59,7 @@ const reportOptions = [
 				name: 'sessions',
 			},
 			{
-				name: 'engagedSessions',
+				name: 'engagementRate',
 			},
 			{
 				name: 'averageSessionDuration',
@@ -109,7 +110,7 @@ Ready.args = {
 };
 Ready.scenario = {
 	label: 'Modules/Analytics/Widgets/DashboardOverallPageMetricsWidgetGA4/Ready',
-	delay: 250,
+	delay: 500,
 };
 
 export const Loading = Template.bind( {} );
@@ -200,7 +201,7 @@ ZeroData.args = {
 };
 ZeroData.scenario = {
 	label: 'Modules/Analytics/Widgets/DashboardOverallPageMetricsWidgetGA4/ZeroData',
-	delay: 250,
+	delay: 500,
 };
 
 export const Error = Template.bind( {} );
@@ -244,7 +245,7 @@ LoadedEntityURL.args = {
 };
 LoadedEntityURL.scenario = {
 	label: 'Modules/Analytics/Widgets/DashboardOverallPageMetricsWidgetGA4/LoadedEntityURL',
-	delay: 250,
+	delay: 500,
 };
 
 export const LoadingEntityURL = Template.bind( {} );
@@ -358,7 +359,7 @@ ZeroDataEntityURL.args = {
 };
 ZeroDataEntityURL.scenario = {
 	label: 'Modules/Analytics/Widgets/DashboardOverallPageMetricsWidgetGA4/ZeroDataEntityURL',
-	delay: 250,
+	delay: 500,
 };
 
 export const ErrorEntityURL = Template.bind( {} );
@@ -402,6 +403,8 @@ export default {
 						slug: 'analytics',
 					},
 				] );
+
+				provideUserAuthentication( registry );
 
 				registry.dispatch( CORE_USER ).setReferenceDate( '2020-09-08' );
 

@@ -16,6 +16,20 @@
  * limitations under the License.
  */
 
-export default function PopularProductsWidget() {
-	return <div>TODO: UI for PopularProductsWidget</div>;
+/**
+ * External dependencies
+ */
+import PropTypes from 'prop-types';
+
+export default function PopularProductsWidget( { Widget } ) {
+	return (
+		<Widget>
+			<div>TODO: UI for PopularProductsWidget</div>
+		</Widget>
+	);
 }
+
+PopularProductsWidget.propTypes = {
+	Widget: PropTypes.elementType.isRequired,
+	WidgetNull: PropTypes.elementType.isRequired,
+};

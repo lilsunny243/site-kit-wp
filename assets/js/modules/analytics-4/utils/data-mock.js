@@ -39,11 +39,14 @@ export const STRATEGY_ZIP = 'zip';
 const ANALYTICS_4_METRIC_TYPES = {
 	totalUsers: 'TYPE_INTEGER',
 	newUsers: 'TYPE_INTEGER',
+	activeUsers: 'TYPE_INTEGER',
 	sessions: 'TYPE_INTEGER',
 	conversions: 'TYPE_INTEGER',
 	screenPageViews: 'TYPE_INTEGER',
 	engagedSessions: 'TYPE_INTEGER',
+	engagementRate: 'TYPE_FLOAT',
 	averageSessionDuration: 'TYPE_SECONDS',
+	sessionConversionRate: 'TYPE_FLOAT',
 };
 
 const ANALYTICS_4_DIMENSION_OPTIONS = {
@@ -59,6 +62,7 @@ const ANALYTICS_4_DIMENSION_OPTIONS = {
 		'Video',
 		'Display',
 	],
+	sessionDefaultChannelGroup: [ 'Organic Search' ],
 	country: [
 		'United States',
 		'United Kingdom',
@@ -72,6 +76,7 @@ const ANALYTICS_4_DIMENSION_OPTIONS = {
 	deviceCategory: [ 'Desktop', 'Tablet', 'Mobile' ],
 	pageTitle: ( i ) => ( i <= 12 ? `Test Post ${ i }` : false ),
 	pagePath: ( i ) => ( i <= 12 ? `/test-post-${ i }/` : false ),
+	newVsReturning: [ 'new', 'returning' ],
 };
 
 /**
@@ -115,6 +120,18 @@ function generateMetricValues( validMetrics ) {
 				values.push( {
 					value: faker.datatype
 						.number( { min: 0, max: 100 } )
+						.toString(),
+				} );
+				break;
+			case 'TYPE_FLOAT':
+				values.push( {
+					value: faker.datatype
+						.float( {
+							min: 0,
+							max: 1,
+							// The GA4 API returns 17 decimal places, so specify that here, although it seems like Faker is only returning up to 16.
+							precision: 0.00000000000000001,
+						} )
 						.toString(),
 				} );
 				break;
@@ -297,7 +314,7 @@ function generateDateRange( startDate, endDate ) {
  * Generates mock data for Analytics 4 reports.
  *
  * @since 1.94.0
- * @since n.e.x.t Added support for using zip to generate dimension combinations.
+ * @since 1.96.0 Added support for using zip to generate dimension combinations.
  *
  * @param {Object} options        Report options.
  * @param {Object} [extraOptions] Extra options for report generation.
@@ -362,7 +379,7 @@ export function getAnalytics4MockResponse(
 	// dimension set in the combined stream (array). We need to use array of streams because report arguments may
 	// have 0 or N dimensions (N > 1) which means that in the each row of the report data we will have an array
 	// of dimension values.
-	const dimensions = castArray( args.dimensions );
+	const dimensions = args.dimensions ? castArray( args.dimensions ) : [];
 
 	if ( hasDateRange ) {
 		dimensions.push( 'dateRange' );

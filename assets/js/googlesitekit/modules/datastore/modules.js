@@ -46,6 +46,7 @@ import { createFetchStore } from '../../data/create-fetch-store';
 import { listFormat } from '../../../util';
 import DefaultSettingsSetupIncomplete from '../../../components/settings/DefaultSettingsSetupIncomplete';
 import { createValidatedAction } from '../../data/utils';
+import { MODULES_ANALYTICS } from '../../../modules/analytics/datastore/constants';
 
 const { createRegistrySelector, createRegistryControl } = Data;
 
@@ -749,11 +750,29 @@ const baseResolvers = {
 			registry.__experimentalResolveSelect( CORE_MODULES ).getModules()
 		);
 
+		if ( modules?.analytics?.recoverable ) {
+			yield Data.commonActions.await(
+				registry
+					.__experimentalResolveSelect( MODULES_ANALYTICS )
+					.getSettings()
+			);
+		}
+
 		const recoverableModules = Object.entries( modules || {} ).reduce(
 			( moduleList, [ moduleSlug, module ] ) => {
 				if ( module.recoverable && ! module.internal ) {
-					moduleList.push( moduleSlug );
+					if (
+						moduleSlug === 'analytics' &&
+						registry
+							.select( MODULES_ANALYTICS )
+							.isGA4DashboardView()
+					) {
+						moduleList.push( 'analytics-4' );
+					} else {
+						moduleList.push( moduleSlug );
+					}
 				}
+
 				return moduleList;
 			},
 			[]
@@ -1170,7 +1189,10 @@ const baseSelectors = {
 			return undefined;
 		}
 
-		return moduleRequirements === true;
+		return (
+			moduleRequirements === true ||
+			moduleRequirements?.canActivate === true
+		);
 	},
 
 	/**
@@ -1189,12 +1211,19 @@ const baseSelectors = {
 		( select ) => ( state, slug ) => {
 			invariant( slug, 'slug is required.' );
 
-			// Need to use registry selector here to ensure resolver is invoked.
-			if ( select( CORE_MODULES ).canActivateModule( slug ) ) {
+			const { checkRequirementsResults } = state;
+			const canActivate =
+				// Need to use registry selector here to ensure resolver is invoked.
+				select( CORE_MODULES ).canActivateModule( slug );
+
+			if (
+				canActivate === undefined ||
+				checkRequirementsResults[ slug ] === true
+			) {
 				return null;
 			}
 
-			return state.checkRequirementsResults[ slug ];
+			return checkRequirementsResults[ slug ];
 		}
 	),
 
@@ -1360,7 +1389,7 @@ const baseSelectors = {
 		}
 
 		return Object.keys( modules ).reduce( ( acc, slug ) => {
-			if ( modules[ slug ].shareable && ! modules[ slug ].internal ) {
+			if ( modules[ slug ].shareable ) {
 				return { [ slug ]: modules[ slug ], ...acc };
 			}
 

@@ -26,15 +26,15 @@ import { __, sprintf } from '@wordpress/i18n';
 /**
  * Internal dependencies
  */
+import { ProgressBar, SpinnerButton } from 'googlesitekit-components';
 import Data from 'googlesitekit-data';
-import { ProgressBar } from 'googlesitekit-components';
 import BannerNotification from '../../../../../components/notifications/BannerNotification';
 import {
+	WebDataStreamSelect,
 	PropertySelect,
 	UseSnippetSwitch,
 } from '../../../../analytics-4/components/common';
 import ErrorNotice from '../../../../../components/ErrorNotice';
-import SpinnerButton from '../../../../../components/SpinnerButton';
 import {
 	MODULES_ANALYTICS_4,
 	PROPERTY_CREATE,
@@ -327,12 +327,8 @@ export default function SetupBanner( { onSubmitSuccess } ) {
 		ctaLabel = __( 'Connect', 'google-site-kit' );
 		children = (
 			<div className="googlesitekit-ga4-setup-banner__field-group">
-				<PropertySelect
-					label={ __(
-						'Google Analytics 4 Property',
-						'google-site-kit'
-					) }
-				/>
+				<PropertySelect />
+				<WebDataStreamSelect />
 
 				{ existingTag && (
 					<UseSnippetSwitch

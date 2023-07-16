@@ -16,6 +16,20 @@
  * limitations under the License.
  */
 
-export default function TopCitiesWidget() {
-	return <div>TODO: UI for TopCitiesWidget</div>;
+/**
+ * External dependencies
+ */
+import PropTypes from 'prop-types';
+
+export default function TopCitiesWidget( { Widget } ) {
+	return (
+		<Widget>
+			<div>TODO: UI for TopCitiesWidget</div>
+		</Widget>
+	);
 }
+
+TopCitiesWidget.propTypes = {
+	Widget: PropTypes.elementType.isRequired,
+	WidgetNull: PropTypes.elementType.isRequired,
+};

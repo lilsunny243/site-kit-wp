@@ -16,6 +16,20 @@
  * limitations under the License.
  */
 
-export default function EngagedTrafficSourceWidget() {
-	return <div>TODO: UI for EngagedTrafficSourceWidget</div>;
+/**
+ * External dependencies
+ */
+import PropTypes from 'prop-types';
+
+export default function EngagedTrafficSourceWidget( { Widget } ) {
+	return (
+		<Widget>
+			<div>TODO: UI for EngagedTrafficSourceWidget</div>
+		</Widget>
+	);
 }
+
+EngagedTrafficSourceWidget.propTypes = {
+	Widget: PropTypes.elementType.isRequired,
+	WidgetNull: PropTypes.elementType.isRequired,
+};
