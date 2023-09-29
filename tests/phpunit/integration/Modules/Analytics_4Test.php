@@ -28,6 +28,7 @@ use Google\Site_Kit\Core\Storage\User_Options;
 use Google\Site_Kit\Modules\Analytics;
 use Google\Site_Kit\Modules\Analytics\Settings as Analytics_Settings;
 use Google\Site_Kit\Modules\Analytics_4;
+use Google\Site_Kit\Modules\Analytics_4\GoogleAnalyticsAdmin\EnhancedMeasurementSettingsModel;
 use Google\Site_Kit\Modules\Analytics_4\Settings;
 use Google\Site_Kit\Tests\Core\Modules\Module_With_Data_Available_State_ContractTests;
 use Google\Site_Kit\Tests\Core\Modules\Module_With_Owner_ContractTests;
@@ -39,6 +40,7 @@ use Google\Site_Kit\Tests\TestCase;
 use Google\Site_Kit\Tests\UserAuthenticationTrait;
 use Google\Site_Kit_Dependencies\Google\Service\Exception;
 use Google\Site_Kit_Dependencies\Google\Service\GoogleAnalyticsAdmin\GoogleAnalyticsAdminV1betaConversionEvent;
+use Google\Site_Kit_Dependencies\Google\Service\GoogleAnalyticsAdmin\GoogleAnalyticsAdminV1betaCustomDimension;
 use Google\Site_Kit_Dependencies\Google\Service\GoogleAnalyticsAdmin\GoogleAnalyticsAdminV1betaDataStream;
 use Google\Site_Kit_Dependencies\Google\Service\GoogleAnalyticsAdmin\GoogleAnalyticsAdminV1betaDataStreamWebStreamData;
 use Google\Site_Kit_Dependencies\Google\Service\GoogleAnalyticsAdmin\GoogleAnalyticsAdminV1betaListConversionEventsResponse;
@@ -53,7 +55,6 @@ use WP_User;
  */
 class Analytics_4Test extends TestCase {
 
-	use AnalyticsDashboardView;
 	use Module_With_Data_Available_State_ContractTests;
 	use Module_With_Owner_ContractTests;
 	use Module_With_Scopes_ContractTests;
@@ -131,7 +132,10 @@ class Analytics_4Test extends TestCase {
 
 		// Adding required scopes.
 		$this->assertEquals(
-			$this->analytics->get_scopes(),
+			array_merge(
+				$this->analytics->get_scopes(),
+				array( 'https://www.googleapis.com/auth/tagmanager.readonly' )
+			),
 			apply_filters( 'googlesitekit_auth_scopes', array() )
 		);
 	}
@@ -205,86 +209,6 @@ class Analytics_4Test extends TestCase {
 	}
 
 	public function test_handle_provisioning_callback() {
-		$account_id       = '12345678';
-		$property_id      = '1001';
-		$webdatastream_id = '2001';
-		$measurement_id   = '1A2BCD345E';
-
-		$options = new Options( $this->context );
-		$options->set(
-			Settings::OPTION,
-			array(
-				'accountID'       => $account_id,
-				'propertyID'      => '',
-				'webDataStreamID' => '',
-				'measurementID'   => '',
-			)
-		);
-
-		FakeHttp::fake_google_http_handler(
-			$this->analytics->get_client(),
-			function( Request $request ) use ( $property_id, $webdatastream_id, $measurement_id ) {
-				$url = parse_url( $request->getUri() );
-
-				if ( 'analyticsadmin.googleapis.com' !== $url['host'] ) {
-					return new Response( 200 );
-				}
-
-				switch ( $url['path'] ) {
-					case '/v1beta/properties':
-						return new Response(
-							200,
-							array(),
-							json_encode(
-								array(
-									'name' => "properties/{$property_id}",
-								)
-							)
-						);
-					case "/v1beta/properties/{$property_id}/dataStreams":
-						$data = new GoogleAnalyticsAdminV1betaDataStreamWebStreamData();
-						$data->setMeasurementId( $measurement_id );
-						$datastream = new GoogleAnalyticsAdminV1betaDataStream();
-						$datastream->setName( "properties/{$property_id}/dataStreams/{$webdatastream_id}" );
-						$datastream->setType( 'WEB_DATA_STREAM' );
-						$datastream->setWebStreamData( $data );
-
-						return new Response(
-							200,
-							array(),
-							json_encode( $datastream->toSimpleObject() )
-						);
-					default:
-						return new Response( 200 );
-				}
-			}
-		);
-
-		remove_all_actions( 'googlesitekit_analytics_handle_provisioning_callback' );
-
-		$this->analytics->register();
-
-		do_action( 'googlesitekit_analytics_handle_provisioning_callback', $account_id, new Analytics\Account_Ticket() );
-
-		$this->assertEqualSetsWithIndex(
-			array(
-				'accountID'               => $account_id,
-				'propertyID'              => $property_id,
-				'webDataStreamID'         => $webdatastream_id,
-				'measurementID'           => $measurement_id,
-				'ownerID'                 => 0,
-				'useSnippet'              => true,
-				'googleTagID'             => '',
-				'googleTagAccountID'      => '',
-				'googleTagContainerID'    => '',
-				'googleTagLastSyncedAtMs' => 0,
-			),
-			$options->get( Settings::OPTION )
-		);
-	}
-
-	public function test_handle_provisioning_callback__gteSupport() {
-		$this->enable_feature( 'gteSupport' );
 		$account_id              = '12345678';
 		$property_id             = '1001';
 		$webdatastream_id        = '2001';
@@ -398,8 +322,7 @@ class Analytics_4Test extends TestCase {
 		);
 	}
 
-	public function test_handle_provisioning_callback__gteSupport__with_failing_container_lookup() {
-		$this->enable_feature( 'gteSupport' );
+	public function test_handle_provisioning_callback__with_failing_container_lookup() {
 		$account_id       = '12345678';
 		$property_id      = '1001';
 		$webdatastream_id = '2001';
@@ -670,11 +593,9 @@ class Analytics_4Test extends TestCase {
 	}
 
 	/**
-	 * @dataProvider data_scopes_gteSupport
+	 * @dataProvider data_scopes
 	 */
-	public function test_auth_scopes__gteSupport( array $granted_scopes, array $expected_scopes ) {
-		$this->enable_feature( 'gteSupport' );
-
+	public function test_auth_scopes_( array $granted_scopes, array $expected_scopes ) {
 		remove_all_filters( 'googlesitekit_auth_scopes' );
 		$this->analytics->register();
 
@@ -686,7 +607,7 @@ class Analytics_4Test extends TestCase {
 		);
 	}
 
-	public function data_scopes_gteSupport() {
+	public function data_scopes() {
 		return array(
 			'with analytics and tag manager scopes granted' => array(
 				array(
@@ -752,6 +673,26 @@ class Analytics_4Test extends TestCase {
 		$this->assertFalse( $this->analytics->is_data_available() );
 	}
 
+	public function test_on_activation() {
+		$dismissed_items = new Dismissed_Items( $this->user_options );
+
+		$dismissed_items->add( 'key-metrics-connect-ga4-cta-widget' );
+
+		$this->assertEqualSets(
+			array(
+				'key-metrics-connect-ga4-cta-widget' => 0,
+			),
+			$dismissed_items->get()
+		);
+
+		$this->analytics->on_activation();
+
+		$this->assertEqualSets(
+			array(),
+			$dismissed_items->get()
+		);
+	}
+
 	public function test_on_deactivation() {
 		$options = new Options( $this->context );
 		$options->set( Settings::OPTION, 'test-value' );
@@ -781,6 +722,32 @@ class Analytics_4Test extends TestCase {
 				'webdatastreams',
 				'webdatastreams-batch',
 				'create-account-ticket',
+				'enhanced-measurement-settings',
+			),
+			$this->analytics->get_datapoints()
+		);
+	}
+
+	public function test_get_datapoints__news_key_metrics() {
+		$this->enable_feature( 'newsKeyMetrics' );
+		$this->assertEqualSets(
+			array(
+				'account-summaries',
+				'accounts',
+				'container-lookup',
+				'container-destinations',
+				'google-tag-settings',
+				'conversion-events',
+				'create-property',
+				'create-webdatastream',
+				'properties',
+				'property',
+				'report',
+				'webdatastreams',
+				'webdatastreams-batch',
+				'create-account-ticket',
+				'enhanced-measurement-settings',
+				'create-custom-dimension',
 			),
 			$this->analytics->get_datapoints()
 		);
@@ -792,8 +759,6 @@ class Analytics_4Test extends TestCase {
 	 * @param array $tag_ids_data Tag IDs and expected result.
 	 */
 	public function test_google_tag_settings_datapoint( $tag_ids_data ) {
-		$this->enable_feature( 'gteSupport' );
-
 		$scopes   = $this->analytics->get_scopes();
 		$scopes[] = 'https://www.googleapis.com/auth/tagmanager.readonly';
 		$this->authentication->get_oauth_client()->set_granted_scopes( $scopes );
@@ -1060,6 +1025,16 @@ class Analytics_4Test extends TestCase {
 								),
 							),
 						),
+						// Verify the URL filter is correct.
+						array(
+							'filter' => array(
+								'fieldName'    => 'pagePath',
+								'stringFilter' => array(
+									'matchType' => 'EXACT',
+									'value'     => 'https://example.org/some-page-here/',
+								),
+							),
+						),
 						// Verify the single-value dimension filter is correct.
 						array(
 							'filter' => array(
@@ -1076,16 +1051,6 @@ class Analytics_4Test extends TestCase {
 								'fieldName'    => 'pageTitle',
 								'inListFilter' => array(
 									'values' => array( 'Title Foo', 'Title Bar' ),
-								),
-							),
-						),
-						// Verify the URL filter is correct.
-						array(
-							'filter' => array(
-								'fieldName'    => 'pagePath',
-								'stringFilter' => array(
-									'matchType' => 'EXACT',
-									'value'     => 'https://example.org/some-page-here/',
 								),
 							),
 						),
@@ -1584,14 +1549,7 @@ class Analytics_4Test extends TestCase {
 	}
 
 	public function test_report__shared_metric_validation() {
-		$this->enable_feature( 'dashboardSharing' );
 		$this->enable_feature( 'ga4Reporting' );
-
-		// Re-register Permissions after enabling the dashboardSharing feature to include dashboard sharing capabilities.
-		// TODO: Remove this when `dashboardSharing` feature flag is removed.
-		$modules     = new Modules( $this->context, null, $this->user_options, $this->authentication );
-		$permissions = new Permissions( $this->context, $this->authentication, $modules, $this->user_options, new Dismissed_Items( $this->user_options ) );
-		$permissions->register();
 
 		$property_id = '123456789';
 
@@ -1604,7 +1562,6 @@ class Analytics_4Test extends TestCase {
 		$this->set_shareable_metrics( 'sessions', 'totalUsers' );
 
 		$this->enable_shared_credentials();
-		$this->set_dashboard_view_ga4();
 		$this->assertTrue( $this->analytics->is_shareable() );
 
 		$data = $this->analytics->get_data(
@@ -1625,14 +1582,6 @@ class Analytics_4Test extends TestCase {
 	}
 
 	public function test_report__shared_dimension_validation() {
-		$this->enable_feature( 'dashboardSharing' );
-
-		// Re-register Permissions after enabling the dashboardSharing feature to include dashboard sharing capabilities.
-		// TODO: Remove this when `dashboardSharing` feature flag is removed.
-		$modules     = new Modules( $this->context, null, $this->user_options, $this->authentication );
-		$permissions = new Permissions( $this->context, $this->authentication, $modules, $this->user_options, new Dismissed_Items( $this->user_options ) );
-		$permissions->register();
-
 		$property_id = '123456789';
 
 		$this->analytics->get_settings()->merge(
@@ -1645,7 +1594,6 @@ class Analytics_4Test extends TestCase {
 		$this->set_shareable_dimensions( 'date', 'pageTitle' );
 
 		$this->enable_shared_credentials();
-		$this->set_dashboard_view_ga4();
 		$this->assertTrue( $this->analytics->is_shareable() );
 
 		$data = $this->analytics->get_data(
@@ -1741,6 +1689,433 @@ class Analytics_4Test extends TestCase {
 
 		$this->assertEquals( 'analyticsadmin.googleapis.com', $request_url['host'] );
 		$this->assertEquals( "/v1beta/properties/$property_id/conversionEvents", $request_url['path'] );
+	}
+
+	public function test_get_enhanced_measurement_settings__required_params() {
+		// Grant READONLY_SCOPE so request doesn't fail.
+		$this->authentication->get_oauth_client()->set_granted_scopes(
+			array_merge(
+				$this->authentication->get_oauth_client()->get_required_scopes(),
+				(array) Analytics::READONLY_SCOPE
+			)
+		);
+
+		$data = $this->analytics->get_data(
+			'enhanced-measurement-settings',
+			array()
+		);
+
+		// Verify that the propertyID is required.
+		$this->assertWPErrorWithMessage( 'Request parameter is empty: propertyID.', $data );
+		$this->assertEquals( 'missing_required_param', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'missing_required_param' ) );
+
+		$data = $this->analytics->get_data(
+			'enhanced-measurement-settings',
+			array(
+				'propertyID' => '123456789',
+			)
+		);
+
+		// Verify that the webDataStreamID is required.
+		$this->assertWPErrorWithMessage( 'Request parameter is empty: webDataStreamID.', $data );
+		$this->assertEquals( 'missing_required_param', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'missing_required_param' ) );
+	}
+
+	public function test_get_enhanced_measurement_settings() {
+		$property_id        = '123456789';
+		$web_data_stream_id = '654321';
+
+		$this->analytics->get_settings()->merge(
+			array(
+				'propertyID'      => $property_id,
+				'webDataStreamID' => $web_data_stream_id,
+			)
+		);
+
+		// Grant READONLY_SCOPE so request doesn't fail.
+		$this->authentication->get_oauth_client()->set_granted_scopes(
+			array_merge(
+				$this->authentication->get_oauth_client()->get_required_scopes(),
+				(array) Analytics::READONLY_SCOPE
+			)
+		);
+
+		FakeHttp::fake_google_http_handler(
+			$this->analytics->get_client(),
+			$this->create_enhanced_measurement_fake_http_handler( $property_id, $web_data_stream_id )
+		);
+		$this->analytics->register();
+
+		// Fetch enhanced measurement settings.
+		$data = $this->analytics->get_data(
+			'enhanced-measurement-settings',
+			array(
+				'propertyID'      => $property_id,
+				'webDataStreamID' => $web_data_stream_id,
+			)
+		);
+
+		$this->assertNotWPError( $data );
+
+		$data_array = (array) $data;
+
+		// Assert that the keys exist.
+		$keys = array(
+			'fileDownloadsEnabled',
+			'name',
+			'outboundClicksEnabled',
+			'pageChangesEnabled',
+			'scrollsEnabled',
+			'searchQueryParameter',
+			'siteSearchEnabled',
+			'streamEnabled',
+			'uriQueryParameter',
+			'videoEngagementEnabled',
+		);
+
+		foreach ( $keys as $key ) {
+			$this->assertArrayHasKey( $key, $data_array );
+		}
+
+		// Verify the enhanced measurement settings are returned by checking a field value.
+		$this->assertEquals( true, $data['streamEnabled'] );
+
+		// Verify the request URL and params were correctly generated.
+		$this->assertCount( 1, $this->request_handler_calls );
+
+		$request_url = $this->request_handler_calls[0]['url'];
+
+		$this->assertEquals( 'analyticsadmin.googleapis.com', $request_url['host'] );
+		$this->assertEquals( "/v1alpha/properties/$property_id/dataStreams/$web_data_stream_id/enhancedMeasurementSettings", $request_url['path'] );
+	}
+
+	public function test_set_enhanced_measurement_settings__required_params() {
+		$property_id        = '123456789';
+		$web_data_stream_id = '654321';
+
+		FakeHttp::fake_google_http_handler(
+			$this->analytics->get_client(),
+			$this->create_enhanced_measurement_fake_http_handler( $property_id, $web_data_stream_id )
+		);
+		$this->analytics->register();
+
+		// Call set_data without EDIT_SCOPE.
+		$data = $this->analytics->set_data(
+			'enhanced-measurement-settings',
+			array(
+				'propertyID'                  => $property_id,
+				'webDataStreamID'             => $web_data_stream_id,
+				'enhancedMeasurementSettings' => array(
+					'streamEnabled' => true,
+				),
+			)
+		);
+
+		// Verify that the EDIT_SCOPE is required.
+		$this->assertWPErrorWithMessage( 'You’ll need to grant Site Kit permission to update enhanced measurement settings for this Analytics 4 web data stream on your behalf.', $data );
+		$this->assertEquals( 'missing_required_scopes', $data->get_error_code() );
+		$this->assertEquals(
+			array(
+				'scopes' => array(
+					'https://www.googleapis.com/auth/analytics.edit',
+				),
+				'status' => 403,
+			),
+			$data->get_error_data( 'missing_required_scopes' )
+		);
+
+		// Grant EDIT_SCOPE so request doesn't fail.
+		$this->authentication->get_oauth_client()->set_granted_scopes(
+			array_merge(
+				$this->authentication->get_oauth_client()->get_required_scopes(),
+				(array) Analytics::EDIT_SCOPE
+			)
+		);
+
+		// Call set_data with no parameters.
+		$data = $this->analytics->set_data(
+			'enhanced-measurement-settings',
+			array()
+		);
+
+		// Verify that the propertyID is required.
+		$this->assertWPErrorWithMessage( 'Request parameter is empty: propertyID.', $data );
+		$this->assertEquals( 'missing_required_param', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'missing_required_param' ) );
+
+		// Call set_data with only the propertyID parameter.
+		$data = $this->analytics->set_data(
+			'enhanced-measurement-settings',
+			array(
+				'propertyID' => '123456789',
+			)
+		);
+
+		// Verify that the webDataStreamID is required.
+		$this->assertWPErrorWithMessage( 'Request parameter is empty: webDataStreamID.', $data );
+		$this->assertEquals( 'missing_required_param', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'missing_required_param' ) );
+
+		// Call set_data with only propertyID and webDataStreamID parameters.
+		$data = $this->analytics->set_data(
+			'enhanced-measurement-settings',
+			array(
+				'propertyID'      => '123456789',
+				'webDataStreamID' => '654321',
+			)
+		);
+
+		// Verify that the enhancedMeasurementSettings object is required.
+		$this->assertWPErrorWithMessage( 'Request parameter is empty: enhancedMeasurementSettings.', $data );
+		$this->assertEquals( 'missing_required_param', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'missing_required_param' ) );
+
+		// Call set_data with invalid enhancedMeasurementSettings fields.
+		$data = $this->analytics->set_data(
+			'enhanced-measurement-settings',
+			array(
+				'propertyID'                  => '123456789',
+				'webDataStreamID'             => '654321',
+				'enhancedMeasurementSettings' => array(
+					'invalidField' => 'invalidValue',
+				),
+			)
+		);
+
+		// Verify that the enhancedMeasurementSettings object is required.
+		$this->assertWPErrorWithMessage( 'Invalid properties in enhancedMeasurementSettings: invalidField.', $data );
+		$this->assertEquals( 'invalid_property_name', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'invalid_property_name' ) );
+	}
+
+	public function test_set_enhanced_measurement_settings() {
+		$property_id        = '123456789';
+		$web_data_stream_id = '654321';
+
+		FakeHttp::fake_google_http_handler(
+			$this->analytics->get_client(),
+			$this->create_enhanced_measurement_fake_http_handler( $property_id, $web_data_stream_id )
+		);
+		$this->analytics->register();
+
+		$this->authentication->get_oauth_client()->set_granted_scopes(
+			array_merge(
+				$this->authentication->get_oauth_client()->get_required_scopes(),
+				(array) Analytics::EDIT_SCOPE
+			)
+		);
+
+		$response = $this->analytics->set_data(
+			'enhanced-measurement-settings',
+			array(
+				'propertyID'                  => '123456789',
+				'webDataStreamID'             => '654321',
+				'enhancedMeasurementSettings' => array(
+					'streamEnabled' => true,
+				),
+			)
+		);
+
+		// Assert request was made with expected arguments.
+		$this->assertNotWPError( $response );
+
+		$response_array = (array) $response;
+
+		// Assert that the keys exist.
+		$keys = array(
+			'fileDownloadsEnabled',
+			'name',
+			'outboundClicksEnabled',
+			'pageChangesEnabled',
+			'scrollsEnabled',
+			'searchQueryParameter',
+			'siteSearchEnabled',
+			'streamEnabled',
+			'uriQueryParameter',
+			'videoEngagementEnabled',
+		);
+
+		foreach ( $keys as $key ) {
+			$this->assertArrayHasKey( $key, $response_array );
+		}
+
+		// Verify the enhanced measurement settings are returned by checking a field value.
+		$this->assertEquals( true, $response_array['streamEnabled'] );
+
+		// Verify the request URL and params were correctly generated.
+		$this->assertCount( 1, $this->request_handler_calls );
+
+		$request_url = $this->request_handler_calls[0]['url'];
+
+		$this->assertEquals( 'analyticsadmin.googleapis.com', $request_url['host'] );
+		$this->assertEquals( "/v1alpha/properties/$property_id/dataStreams/$web_data_stream_id/enhancedMeasurementSettings", $request_url['path'] );
+	}
+
+	public function test_create_custom_dimension__required_params() {
+		$this->enable_feature( 'newsKeyMetrics' );
+		$property_id = '123456789';
+
+		FakeHttp::fake_google_http_handler(
+			$this->analytics->get_client(),
+			$this->create_fake_http_handler( $property_id )
+		);
+		$this->analytics->register();
+
+		// Call set_data without EDIT_SCOPE.
+		$data = $this->analytics->set_data(
+			'create-custom-dimension',
+			array(
+				'propertyID'      => $property_id,
+				'customDimension' => array(
+					'description'                => 'Test Custom Dimension Description',
+					'disallowAdsPersonalization' => false,
+					'displayName'                => 'Test Custom Dimension',
+					'parameterName'              => 'googlesitekit_post_author',
+					'scope'                      => 'EVENT',
+				),
+			)
+		);
+
+		// Verify that the EDIT_SCOPE is required.
+		$this->assertWPErrorWithMessage( 'You’ll need to grant Site Kit permission to create a new Analytics 4 custom dimension on your behalf.', $data );
+		$this->assertEquals( 'missing_required_scopes', $data->get_error_code() );
+		$this->assertEquals(
+			array(
+				'scopes' => array(
+					'https://www.googleapis.com/auth/analytics.edit',
+				),
+				'status' => 403,
+			),
+			$data->get_error_data( 'missing_required_scopes' )
+		);
+
+		// Grant EDIT_SCOPE so request doesn't fail.
+		$this->authentication->get_oauth_client()->set_granted_scopes(
+			array_merge(
+				$this->authentication->get_oauth_client()->get_required_scopes(),
+				(array) Analytics::EDIT_SCOPE
+			)
+		);
+
+		// Call set_data with no parameters.
+		$data = $this->analytics->set_data(
+			'create-custom-dimension',
+			array()
+		);
+
+		// Verify that the propertyID is required.
+		$this->assertWPErrorWithMessage( 'Request parameter is empty: propertyID.', $data );
+		$this->assertEquals( 'missing_required_param', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'missing_required_param' ) );
+
+		// Call set_data with only the propertyID parameter.
+		$data = $this->analytics->set_data(
+			'create-custom-dimension',
+			array(
+				'propertyID' => $property_id,
+			)
+		);
+
+		// Verify that the customDimension object is required.
+		$this->assertWPErrorWithMessage( 'Request parameter is empty: customDimension.', $data );
+		$this->assertEquals( 'missing_required_param', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'missing_required_param' ) );
+
+		// Call set_data with invalid customDimension fields.
+		$data = $this->analytics->set_data(
+			'create-custom-dimension',
+			array(
+				'propertyID'      => $property_id,
+				'customDimension' => array(
+					'invalidField' => 'invalidValue',
+				),
+			)
+		);
+
+		// Verify that the keys are valid for the customDimension object.
+		$this->assertWPErrorWithMessage( 'Invalid properties in customDimension: invalidField.', $data );
+		$this->assertEquals( 'invalid_property_name', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'invalid_property_name' ) );
+
+		// Call set_data with invalid scope.
+		$data = $this->analytics->set_data(
+			'create-custom-dimension',
+			array(
+				'propertyID'      => $property_id,
+				'customDimension' => array(
+					'description'                => 'Test Custom Dimension Description',
+					'disallowAdsPersonalization' => false,
+					'displayName'                => 'Test Custom Dimension',
+					'parameterName'              => 'googlesitekit_post_author',
+					'scope'                      => 'invalidValue',
+				),
+			)
+		);
+
+		// Verify that scope has a valid value.
+		$this->assertWPErrorWithMessage( 'Invalid scope: invalidValue.', $data );
+		$this->assertEquals( 'invalid_scope', $data->get_error_code() );
+		$this->assertEquals( array( 'status' => 400 ), $data->get_error_data( 'invalid_scope' ) );
+	}
+
+	public function test_create_custom_dimension() {
+		$this->enable_feature( 'newsKeyMetrics' );
+		$property_id = '123456789';
+
+		FakeHttp::fake_google_http_handler(
+			$this->analytics->get_client(),
+			$this->create_fake_http_handler( $property_id )
+		);
+		$this->analytics->register();
+
+		$this->authentication->get_oauth_client()->set_granted_scopes(
+			array_merge(
+				$this->authentication->get_oauth_client()->get_required_scopes(),
+				(array) Analytics::EDIT_SCOPE
+			)
+		);
+
+		$custom_dimension = array(
+			'description'                => 'Test Custom Dimension Description',
+			'disallowAdsPersonalization' => false,
+			'displayName'                => 'Test Custom Dimension',
+			'parameterName'              => 'googlesitekit_post_author',
+			'scope'                      => 'EVENT',
+		);
+
+		$response = $this->analytics->set_data(
+			'create-custom-dimension',
+			array(
+				'propertyID'      => $property_id,
+				'customDimension' => $custom_dimension,
+			)
+		);
+
+		$this->assertNotWPError( $response );
+
+		$response_array = (array) $response;
+
+		// Assert that the keys exist.
+		$keys = array_keys( $custom_dimension );
+
+		foreach ( $keys as $key ) {
+			$this->assertArrayHasKey( $key, $response_array );
+		}
+
+		// Validate the response against the expected mock value.
+		foreach ( $custom_dimension as $key => $value ) {
+			$this->assertEquals( $value, $response_array[ $key ] );
+		}
+
+		// Verify the request URL and params were correctly generated.
+		$this->assertCount( 1, $this->request_handler_calls );
+
+		$request_url = $this->request_handler_calls[0]['url'];
+
+		$this->assertEquals( 'analyticsadmin.googleapis.com', $request_url['host'] );
+		$this->assertEquals( "/v1beta/properties/$property_id/customDimensions", $request_url['path'] );
 	}
 
 	/**
@@ -1847,11 +2222,73 @@ class Analytics_4Test extends TestCase {
 						json_encode( $conversion_events )
 					);
 
+				case "/v1beta/properties/$property_id/customDimensions":
+					$custom_dimension = new GoogleAnalyticsAdminV1betaCustomDimension();
+					$custom_dimension->setParameterName( 'googlesitekit_post_author' );
+					$custom_dimension->setDisplayName( 'Test Custom Dimension' );
+					$custom_dimension->setDescription( 'Test Custom Dimension Description' );
+					$custom_dimension->setScope( 'EVENT' );
+					$custom_dimension->setDisallowAdsPersonalization( false );
+
+					return new Response(
+						200,
+						array(),
+						json_encode( $custom_dimension )
+					);
+
 				default:
 					return new Response( 200 );
 			}
 		};
 	}
+
+
+	/**
+	 * Creates a fake HTTP handler with call tracking for enhanced measurement settings.
+	 *
+	 * @param string $property_id The GA4 property ID to use.
+	 * @param string $web_data_stream_id The GA4 web data stream ID to use.
+	 * @return Closure The fake HTTP client.
+	 */
+	public function create_enhanced_measurement_fake_http_handler( $property_id, $web_data_stream_id ) {
+		$this->request_handler_calls = array();
+
+		return function ( Request $request ) use ( $property_id, $web_data_stream_id ) {
+			$url    = parse_url( $request->getUri() );
+			$params = json_decode( (string) $request->getBody(), true );
+
+			$this->request_handler_calls[] = array(
+				'url'    => $url,
+				'params' => $params,
+			);
+
+			if (
+				! in_array(
+					$url['host'],
+					array( 'analyticsdata.googleapis.com', 'analyticsadmin.googleapis.com' ),
+					true
+				)
+			) {
+				return new Response( 200 );
+			}
+
+			switch ( $url['path'] ) {
+				case "/v1alpha/properties/$property_id/dataStreams/$web_data_stream_id/enhancedMeasurementSettings":
+					$enhanced_measurement_settings = new EnhancedMeasurementSettingsModel();
+					$enhanced_measurement_settings->setStreamEnabled( true );
+
+					return new Response(
+						200,
+						array(),
+						json_encode( $enhanced_measurement_settings )
+					);
+
+				default:
+					return new Response( 200 );
+			}
+		};
+	}
+
 
 	/**
 	 * Metrics and dimensions are only validated when using shared credentials. This helper method sets up the shared credentials scenario.
@@ -1947,24 +2384,6 @@ class Analytics_4Test extends TestCase {
 		$this->analytics->register();
 
 		$snippet_html = $this->capture_action( 'googlesitekit_analytics_tracking_opt_out' );
-		// Ensure the snippet is not output when the measurement ID is empty.
-		$this->assertEmpty( $snippet_html );
-
-		$settings = array(
-			'measurementID' => 'G-12345678',
-		);
-		$this->analytics->get_settings()->merge( $settings );
-
-		$snippet_html = $this->capture_action( 'googlesitekit_analytics_tracking_opt_out' );
-		// Ensure the snippet contains the configured measurement ID.
-		$this->assertStringContainsString( 'window["ga-disable-' . $settings['measurementID'] . '"] = true', $snippet_html );
-	}
-
-	public function test_tracking_opt_out_snippet__gteSupport() {
-		$this->enable_feature( 'gteSupport' );
-		$this->analytics->register();
-
-		$snippet_html = $this->capture_action( 'googlesitekit_analytics_tracking_opt_out' );
 		// Ensure the snippet is not output when both measurement ID and google tag ID are empty.
 		$this->assertEmpty( $snippet_html );
 
@@ -1978,14 +2397,15 @@ class Analytics_4Test extends TestCase {
 		$this->assertStringContainsString( 'window["ga-disable-' . $settings['measurementID'] . '"] = true', $snippet_html );
 
 		$settings = array(
-			'googleTagID' => 'GT-12345678',
+			'measurementID' => 'G-12345678',
+			'googleTagID'   => 'GT-12345678',
 		);
 
 		$this->analytics->get_settings()->merge( $settings );
 
 		$snippet_html = $this->capture_action( 'googlesitekit_analytics_tracking_opt_out' );
-		// Ensure the snippet contains the configured google tag ID when it is set.
-		$this->assertStringContainsString( 'window["ga-disable-' . $settings['googleTagID'] . '"] = true', $snippet_html );
+		// Ensure the snippet contains the configured measurement ID (not GT tag) when it is set.
+		$this->assertStringContainsString( 'window["ga-disable-' . $settings['measurementID'] . '"] = true', $snippet_html );
 	}
 
 	public function test_register_allow_tracking_disabled() {

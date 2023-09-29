@@ -561,9 +561,14 @@ export const baseControls = {
 			}
 	),
 	[ SELECT_MODULE_REAUTH_URL ]: createRegistryControl(
-		( { select } ) =>
-			( { payload } ) => {
+		( { select, __experimentalResolveSelect } ) =>
+			async ( { payload } ) => {
 				const { slug } = payload;
+				// Ensure the module is loaded before selecting the store name.
+				await __experimentalResolveSelect( CORE_MODULES ).getModule(
+					slug
+				);
+
 				const storeName =
 					select( CORE_MODULES ).getModuleStoreName( slug );
 
@@ -572,10 +577,10 @@ export const baseControls = {
 					return;
 				}
 
-				const getAdminReauthURL =
-					select( storeName )?.getAdminReauthURL;
-				if ( getAdminReauthURL ) {
-					return getAdminReauthURL();
+				if ( select( storeName )?.getAdminReauthURL ) {
+					return await __experimentalResolveSelect(
+						storeName
+					).getAdminReauthURL();
 				}
 				return select( CORE_SITE ).getAdminURL(
 					'googlesitekit-dashboard'
@@ -1388,7 +1393,17 @@ const baseSelectors = {
 			return undefined;
 		}
 
+		const isGA4DashboardView =
+			select( MODULES_ANALYTICS ).isGA4DashboardView();
+
 		return Object.keys( modules ).reduce( ( acc, slug ) => {
+			if (
+				( slug === 'analytics' && isGA4DashboardView ) ||
+				( slug === 'analytics-4' && ! isGA4DashboardView )
+			) {
+				return acc;
+			}
+
 			if ( modules[ slug ].shareable ) {
 				return { [ slug ]: modules[ slug ], ...acc };
 			}

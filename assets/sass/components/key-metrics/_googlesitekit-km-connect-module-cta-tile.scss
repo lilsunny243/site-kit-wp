@@ -19,39 +19,70 @@
 .googlesitekit-plugin {
 
 	.googlesitekit-widget--connectModuleCTATile {
+		align-items: center;
+		container: cta-tile / inline-size;
+		display: flex;
 
-		.googlesitekit-widget__body {
-			display: flex;
-			flex-direction: column;
+		.googlesitekit-km-connect-module-cta-tile__ghost-card {
+			display: none;
+			height: 90px;
+			margin-right: $grid-gap-desktop / 2;
+			max-height: 90px;
+		}
 
-			.googlesitekit-km-connect-module-cta-tile {
-				align-items: center;
+		// Show the 1st green ghost card when the container width exceeds 400px.
+		/* stylelint-disable-next-line scss/at-rule-no-unknown */
+		@container cta-tile (inline-size > 400px) {
+			.googlesitekit-km-connect-module-cta-tile__ghost-card:nth-child(2) {
 				display: flex;
-				flex: 1;
-				padding: $grid-gap-phone;
-
-				@media (min-width: $bp-tablet) {
-					padding: $grid-gap-desktop;
-				}
-
-				.googlesitekit-km-connect-module-cta-tile__icon {
-					display: flex;
-					justify-content: right;
-				}
-
-				.googlesitekit-km-connect-module-cta-tile__content {
-					flex: 1;
-					margin-left: $grid-gap-phone / 2;
-
-					@media (min-width: $bp-tablet) {
-						margin-left: $grid-gap-desktop / 2;
-					}
-
-					.googlesitekit-km-connect-module-cta-tile__text {
-						margin: 0 0 4px;
-					}
-				}
+				margin-left: $grid-gap-desktop / 2;
 			}
+		}
+
+		// Show the red ghost card when the container width exceeds 600px.
+		// If only two cards are shown, the red card will be the 2nd card.
+		/* stylelint-disable-next-line scss/at-rule-no-unknown */
+		@container cta-tile (inline-size > 600px) {
+			.googlesitekit-km-connect-module-cta-tile__ghost-card:nth-child(4) {
+				display: flex;
+			}
+		}
+
+		// Show the 2nd green ghost card when the container width exceeds 900px.
+		/* stylelint-disable-next-line scss/at-rule-no-unknown */
+		@container cta-tile (inline-size > 900px) {
+			.googlesitekit-km-connect-module-cta-tile__ghost-card:nth-child(3) {
+				display: flex;
+			}
+		}
+	}
+
+	.googlesitekit-km-connect-module-cta-tile {
+		align-items: center;
+		display: flex;
+		flex: 1;
+		padding: $grid-gap-phone 0;
+
+		@media (min-width: $bp-tablet) {
+			padding: $grid-gap-desktop 0;
+		}
+	}
+
+	.googlesitekit-km-connect-module-cta-tile__icon {
+		display: flex;
+		justify-content: right;
+	}
+
+	.googlesitekit-km-connect-module-cta-tile__content {
+		flex: 1;
+		margin-left: $grid-gap-phone / 2;
+
+		@media (min-width: $bp-tablet) {
+			margin-left: $grid-gap-desktop / 2;
+		}
+
+		.googlesitekit-km-connect-module-cta-tile__text {
+			margin: 0 0 4px;
 		}
 	}
 }

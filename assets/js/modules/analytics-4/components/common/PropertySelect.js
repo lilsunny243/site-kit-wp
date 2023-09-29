@@ -78,21 +78,9 @@ export default function PropertySelect( props ) {
 			return false;
 		}
 
-		const isResolvingProperties =
-			hasModuleAccess === false || ! accountID
-				? false
-				: select( MODULES_ANALYTICS_4 ).isResolving( 'getProperties', [
-						accountID,
-				  ] );
-
-		return (
-			select( MODULES_ANALYTICS_4 ).isMatchingAccountProperty() ||
-			! select( MODULES_ANALYTICS ).hasFinishedResolution(
-				'getAccounts'
-			) ||
-			isResolvingProperties ||
-			select( MODULES_ANALYTICS ).hasFinishedSelectingAccount() === false
-		);
+		return select( MODULES_ANALYTICS_4 ).isLoadingProperties( {
+			hasModuleAccess,
+		} );
 	} );
 
 	const viewContext = useViewContext();
@@ -122,7 +110,7 @@ export default function PropertySelect( props ) {
 	if ( ! isValidAccountID( accountID ) ) {
 		return null;
 	} else if ( isLoading ) {
-		return <ProgressBar height={ 100 } small />;
+		return <ProgressBar smallHeight={ 80 } desktopHeight={ 88 } small />;
 	}
 
 	const isValidSelection =

@@ -64,13 +64,39 @@ Ready.scenario = {
 	delay: 250,
 };
 
+export const ReadyWithInfoTooltip = Template.bind( {} );
+ReadyWithInfoTooltip.storyName = 'Ready With Info Tooltip';
+ReadyWithInfoTooltip.args = {
+	title,
+	rows: [
+		{
+			field1: [ 'keyword1' ],
+			field2: 0.112,
+		},
+		{
+			field1: [ 'keyword2' ],
+			field2: 0.212,
+		},
+		{
+			field1: [ 'keyword3' ],
+			field2: 0.312,
+		},
+	],
+	columns,
+	infoTooltip: 'This is a tooltip',
+};
+ReadyWithInfoTooltip.scenario = {
+	label: 'KeyMetrics/MetricTileTable/ReadyWithInfoTooltip',
+	delay: 250,
+};
+
 export const ZeroData = Template.bind( {} );
 ZeroData.storyName = 'Zero Data';
 ZeroData.args = {
 	title,
 	rows: [],
 	columns,
-	zeroState: () => 'No data available',
+	ZeroState: () => <div>No data available</div>,
 };
 ZeroData.scenario = {
 	label: 'KeyMetrics/MetricTileTable/ZeroData',

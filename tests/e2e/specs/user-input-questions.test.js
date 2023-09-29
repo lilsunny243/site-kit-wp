@@ -47,16 +47,14 @@ import { getSearchConsoleMockResponse } from '../../../assets/js/modules/search-
 
 describe( 'User Input Settings', () => {
 	async function fillInInputSettings() {
-		await page.waitForSelector(
-			'.googlesitekit-user-input__question--active'
-		);
+		await page.waitForSelector( '.googlesitekit-user-input__question' );
 
 		await step( 'select purpose', async () => {
 			await expect( page ).toClick( '#purpose-publish_blog' );
 		} );
 
 		await expect( page ).toClick(
-			'.googlesitekit-user-input__question--active .googlesitekit-user-input__buttons--next'
+			'.googlesitekit-user-input__question .googlesitekit-user-input__buttons--next'
 		);
 
 		await pageWait();
@@ -66,7 +64,7 @@ describe( 'User Input Settings', () => {
 		} );
 
 		await expect( page ).toClick(
-			'.googlesitekit-user-input__question--active .googlesitekit-user-input__buttons--next'
+			'.googlesitekit-user-input__question .googlesitekit-user-input__buttons--next'
 		);
 
 		await pageWait();
@@ -79,7 +77,7 @@ describe( 'User Input Settings', () => {
 
 		await step( 'go to preview page', async () => {
 			await expect( page ).toClick(
-				'.googlesitekit-user-input__question--active .googlesitekit-user-input__buttons--next'
+				'.googlesitekit-user-input__question .googlesitekit-user-input__buttons--next'
 			);
 		} );
 
@@ -97,8 +95,10 @@ describe( 'User Input Settings', () => {
 		);
 
 		await step(
-			'wait for success notification',
-			page.waitForSelector( '#user-input-success' )
+			'wait for a Key Metric tile to successfully appear',
+			page.waitForSelector(
+				'.googlesitekit-widget--kmAnalyticsLoyalVisitors'
+			)
 		);
 	}
 
@@ -145,6 +145,20 @@ describe( 'User Input Settings', () => {
 						getSearchConsoleMockResponse( paramsObject )
 					),
 				} );
+			} else if (
+				url.match(
+					'/google-site-kit/v1/modules/search-console/data/data-available'
+				)
+			) {
+				request.continue();
+			} else if (
+				url.match(
+					'/google-site-kit/v1/modules/analytics-4/data/data-available'
+				)
+			) {
+				request.continue();
+			} else if ( url.match( 'user/data/survey-timeout' ) ) {
+				request.respond( { status: 200 } );
 			} else if ( url.match( '/google-site-kit/v1/modules' ) ) {
 				request.respond( { status: 200 } );
 			} else {
@@ -155,6 +169,7 @@ describe( 'User Input Settings', () => {
 
 	beforeEach( async () => {
 		await enableFeature( 'userInput' );
+		await enableFeature( 'ga4Reporting' );
 		await activatePlugins(
 			'e2e-tests-proxy-setup',
 			'e2e-tests-oauth-callback-plugin'
@@ -180,6 +195,28 @@ describe( 'User Input Settings', () => {
 			'visit admin dashboard',
 			visitAdminPage( 'admin.php', 'page=googlesitekit-dashboard' )
 		);
+
+		await Promise.all( [
+			page.waitForResponse( ( res ) =>
+				res
+					.url()
+					.match(
+						'/google-site-kit/v1/modules/search-console/data/data-available'
+					)
+			),
+			page.waitForResponse( ( res ) =>
+				res
+					.url()
+					.match(
+						'/google-site-kit/v1/modules/analytics-4/data/data-available'
+					)
+			),
+		] );
+
+		// On the first load of the dashboard, report requests made by the isGatheringData selector for SC and GA4
+		// will fetch some data since we intercept those requests providing mock report data. This the data-available
+		// endpoint which sets the appropriate transients that will be prefetched only on the next page load.
+		await page.reload();
 
 		await page.waitForSelector(
 			'.googlesitekit-setup__wrapper--key-metrics-setup-cta'

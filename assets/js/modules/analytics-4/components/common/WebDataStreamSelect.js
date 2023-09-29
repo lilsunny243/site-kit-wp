@@ -66,9 +66,7 @@ export default function WebDataStreamSelect( props ) {
 
 	const webDataStreams = useSelect( ( select ) =>
 		isValidPropertyID( propertyID ) && hasModuleAccess !== false
-			? select(
-					MODULES_ANALYTICS_4
-			  ).getMatchingWebDataStreamsByPropertyID( propertyID )
+			? select( MODULES_ANALYTICS_4 ).getWebDataStreams( propertyID )
 			: []
 	);
 
@@ -77,38 +75,9 @@ export default function WebDataStreamSelect( props ) {
 			return false;
 		}
 
-		const loadedAccounts =
-			select( MODULES_ANALYTICS ).hasFinishedResolution( 'getAccounts' );
-
-		const loadedProperties =
-			hasModuleAccess !== false
-				? select( MODULES_ANALYTICS_4 ).hasFinishedResolution(
-						'getProperties',
-						[ accountID ]
-				  )
-				: true;
-
-		const loadedWebDataStreams =
-			isValidPropertyID( propertyID ) && hasModuleAccess !== false
-				? select( MODULES_ANALYTICS_4 ).hasFinishedResolution(
-						'getWebDataStreams',
-						[ propertyID ]
-				  )
-				: true;
-
-		const finishedSelectingAccount =
-			select( MODULES_ANALYTICS ).hasFinishedSelectingAccount() !== false;
-
-		const isMatchingAccountProperty =
-			select( MODULES_ANALYTICS_4 ).isMatchingAccountProperty();
-
-		return (
-			isMatchingAccountProperty ||
-			! loadedAccounts ||
-			! loadedProperties ||
-			! loadedWebDataStreams ||
-			! finishedSelectingAccount
-		);
+		return select( MODULES_ANALYTICS_4 ).isLoadingWebDataStreams( {
+			hasModuleAccess,
+		} );
 	} );
 
 	const viewContext = useViewContext();
@@ -147,7 +116,7 @@ export default function WebDataStreamSelect( props ) {
 	if ( ! isValidAccountID( accountID ) ) {
 		return null;
 	} else if ( isLoading ) {
-		return <ProgressBar height={ 100 } small />;
+		return <ProgressBar smallHeight={ 80 } desktopHeight={ 88 } small />;
 	}
 
 	const isValidSelection =

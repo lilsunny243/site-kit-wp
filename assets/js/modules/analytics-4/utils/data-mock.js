@@ -43,10 +43,12 @@ const ANALYTICS_4_METRIC_TYPES = {
 	sessions: 'TYPE_INTEGER',
 	conversions: 'TYPE_INTEGER',
 	screenPageViews: 'TYPE_INTEGER',
+	screenPageViewsPerSession: 'TYPE_FLOAT',
 	engagedSessions: 'TYPE_INTEGER',
 	engagementRate: 'TYPE_FLOAT',
 	averageSessionDuration: 'TYPE_SECONDS',
 	sessionConversionRate: 'TYPE_FLOAT',
+	sessionsPerUser: 'TYPE_FLOAT',
 };
 
 const ANALYTICS_4_DIMENSION_OPTIONS = {
@@ -72,6 +74,15 @@ const ANALYTICS_4_DIMENSION_OPTIONS = {
 		'Ukraine',
 		'Italy',
 		'Mexico',
+	],
+	city: [
+		'Dublin',
+		'(not set)',
+		'Cork',
+		'New York',
+		'London',
+		'Los Angeles',
+		'San Francisco',
 	],
 	deviceCategory: [ 'Desktop', 'Tablet', 'Mobile' ],
 	pageTitle: ( i ) => ( i <= 12 ? `Test Post ${ i }` : false ),
@@ -511,7 +522,7 @@ export function getAnalytics4MockResponse(
 							value: 'RESERVED_MIN',
 						};
 					} ),
-					metricValues: [ ...( rows[ 0 ]?.metricValues || [] ) ],
+					metricValues: cloneDeep( rows[ 0 ]?.metricValues || [] ),
 				},
 			].concat(
 				hasDateRange
@@ -530,9 +541,9 @@ export function getAnalytics4MockResponse(
 										};
 									}
 								),
-								metricValues: [
-									...( rows[ 1 ]?.metricValues || [] ),
-								],
+								metricValues: cloneDeep(
+									rows[ 1 ]?.metricValues || []
+								),
 							},
 					  ]
 					: []
@@ -553,9 +564,9 @@ export function getAnalytics4MockResponse(
 							value: 'RESERVED_MAX',
 						};
 					} ),
-					metricValues: [
-						...( rows[ firstItemIndex ]?.metricValues || [] ),
-					],
+					metricValues: cloneDeep(
+						rows[ firstItemIndex ]?.metricValues || []
+					),
 				},
 			].concat(
 				hasDateRange
@@ -574,10 +585,9 @@ export function getAnalytics4MockResponse(
 										};
 									}
 								),
-								metricValues: [
-									...( rows[ rows.length - 1 ]
-										?.metricValues || [] ),
-								],
+								metricValues: cloneDeep(
+									rows[ rows.length - 1 ]?.metricValues || []
+								),
 							},
 					  ]
 					: []
@@ -595,9 +605,9 @@ export function getAnalytics4MockResponse(
 							value: 'RESERVED_TOTAL',
 						};
 					} ),
-					metricValues: [
-						...( rows[ firstItemIndex ]?.metricValues || [] ),
-					],
+					metricValues: cloneDeep(
+						rows[ firstItemIndex ]?.metricValues || []
+					),
 				},
 			].concat(
 				hasDateRange
@@ -616,10 +626,9 @@ export function getAnalytics4MockResponse(
 										};
 									}
 								),
-								metricValues: [
-									...( rows[ rows.length - 1 ]
-										?.metricValues || [] ),
-								],
+								metricValues: cloneDeep(
+									rows[ rows.length - 1 ]?.metricValues || []
+								),
 							},
 					  ]
 					: []

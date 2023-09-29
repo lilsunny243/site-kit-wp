@@ -33,14 +33,19 @@ import Data from 'googlesitekit-data';
 import { CORE_MODULES } from '../../googlesitekit/modules/datastore/constants';
 import useActivateModuleCallback from '../../hooks/useActivateModuleCallback';
 import Link from '../Link';
+import GhostCardGreenSVG from './GhostCardGreenSVG';
+import GhostCardRedSVG from './GhostCardRedSVG';
 
 const { useSelect } = Data;
 
-export default function ConnectModuleCTATile( { Icon, moduleSlug, Widget } ) {
+export default function ConnectModuleCTATile( { moduleSlug } ) {
 	const handleConnectModule = useActivateModuleCallback( moduleSlug );
 
 	const module = useSelect( ( select ) =>
 		select( CORE_MODULES ).getModule( moduleSlug )
+	);
+	const Icon = useSelect( ( select ) =>
+		select( CORE_MODULES ).getModuleIcon( moduleSlug )
 	);
 
 	if ( ! module ) {
@@ -48,14 +53,14 @@ export default function ConnectModuleCTATile( { Icon, moduleSlug, Widget } ) {
 	}
 
 	return (
-		<Widget
-			className="googlesitekit-widget--connectModuleCTATile"
-			noPadding
-		>
+		<div className="googlesitekit-widget--connectModuleCTATile">
 			<div className="googlesitekit-km-connect-module-cta-tile">
-				<div className="googlesitekit-km-connect-module-cta-tile__icon">
-					<Icon width="32" height="32" />
-				</div>
+				{ Icon && (
+					<div className="googlesitekit-km-connect-module-cta-tile__icon">
+						<Icon width="32" height="32" />
+					</div>
+				) }
+
 				<div className="googlesitekit-km-connect-module-cta-tile__content">
 					<p className="googlesitekit-km-connect-module-cta-tile__text">
 						{ sprintf(
@@ -76,12 +81,20 @@ export default function ConnectModuleCTATile( { Icon, moduleSlug, Widget } ) {
 					</Link>
 				</div>
 			</div>
-		</Widget>
+
+			<div className="googlesitekit-km-connect-module-cta-tile__ghost-card">
+				<GhostCardGreenSVG />
+			</div>
+			<div className="googlesitekit-km-connect-module-cta-tile__ghost-card">
+				<GhostCardGreenSVG />
+			</div>
+			<div className="googlesitekit-km-connect-module-cta-tile__ghost-card">
+				<GhostCardRedSVG />
+			</div>
+		</div>
 	);
 }
 
 ConnectModuleCTATile.propTypes = {
-	Icon: propTypes.elementType.isRequired,
 	moduleSlug: propTypes.string.isRequired,
-	Widget: propTypes.elementType.isRequired,
 };

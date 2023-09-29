@@ -14,6 +14,9 @@
  * limitations under the License.
  */
 
+export { default as ChangeMetricsLink } from './ChangeMetricsLink';
 export { default as KeyMetricsSetupCTAWidget } from './KeyMetricsSetupCTAWidget';
 export { default as MetricTileNumeric } from './MetricTileNumeric';
 export { default as MetricTileTable } from './MetricTileTable';
+export { default as MetricTileTablePlainText } from './MetricTileTablePlainText';
+export { default as MetricTileText } from './MetricTileText';

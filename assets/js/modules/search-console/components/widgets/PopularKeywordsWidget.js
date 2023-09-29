@@ -39,7 +39,10 @@ import { generateDateRangeArgs } from '../../util';
 import { numFmt } from '../../../../util';
 import Link from '../../../../components/Link';
 import useViewOnly from '../../../../hooks/useViewOnly';
-import { MetricTileTable } from '../../../../components/KeyMetrics';
+import {
+	MetricTileTable,
+	MetricTileTablePlainText,
+} from '../../../../components/KeyMetrics';
 import { ZeroDataMessage } from '../common';
 
 const { useSelect, useInViewSelect } = Data;
@@ -63,7 +66,13 @@ export default function PopularKeywordsWidget( { Widget } ) {
 		select( MODULES_SEARCH_CONSOLE ).getReport( reportOptions )
 	);
 
-	const loading = useInViewSelect(
+	const error = useSelect( ( select ) =>
+		select( MODULES_SEARCH_CONSOLE ).getErrorForSelector( 'getReport', [
+			reportOptions,
+		] )
+	);
+
+	const loading = useSelect(
 		( select ) =>
 			! select( MODULES_SEARCH_CONSOLE ).hasFinishedResolution(
 				'getReport',
@@ -89,6 +98,10 @@ export default function PopularKeywordsWidget( { Widget } ) {
 						  )
 						: null;
 				} );
+
+				if ( viewOnlyDashboard ) {
+					return <MetricTileTablePlainText content={ fieldValue } />;
+				}
 
 				return (
 					<Link
@@ -126,13 +139,18 @@ export default function PopularKeywordsWidget( { Widget } ) {
 			loading={ loading }
 			rows={ rows }
 			columns={ columns }
-			zeroState={ ZeroDataMessage }
+			ZeroState={ ZeroDataMessage }
 			limit={ 3 }
+			error={ error }
+			moduleSlug="search-console"
+			infoTooltip={ __(
+				'The top search queries for your site by highest clickthrough rate',
+				'google-site-kit'
+			) }
 		/>
 	);
 }
 
 PopularKeywordsWidget.propTypes = {
 	Widget: PropTypes.elementType.isRequired,
-	WidgetNull: PropTypes.elementType.isRequired,
 };

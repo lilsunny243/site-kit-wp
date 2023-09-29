@@ -48,17 +48,19 @@ export default function SettingsCardKeyMetrics() {
 		select( CORE_SITE ).getAdminURL( 'googlesitekit-user-input' )
 	);
 
+	const gaEventCategory = `${ viewContext }_kmw`;
+
 	useEffect( () => {
 		if ( isUserInputCompleted ) {
-			trackEvent( viewContext, 'summary_view' );
+			trackEvent( gaEventCategory, 'summary_view' );
 		}
-	}, [ isUserInputCompleted, viewContext ] );
+	}, [ isUserInputCompleted, gaEventCategory ] );
 
 	const { navigateTo } = useDispatch( CORE_LOCATION );
 	const goTo = ( questionIndex = 1 ) => {
 		const questionSlug = USER_INPUT_QUESTIONS_LIST[ questionIndex - 1 ];
 		if ( questionSlug ) {
-			trackEvent( viewContext, 'question_edit', questionSlug );
+			trackEvent( gaEventCategory, 'question_edit', questionSlug );
 
 			navigateTo(
 				addQueryArgs( userInputURL, {
@@ -79,7 +81,7 @@ export default function SettingsCardKeyMetrics() {
 		: __( 'Personalize your metrics', 'google-site-kit' );
 
 	return (
-		<Layout title={ __( 'Key metrics', 'google-site-kit' ) } header rounded>
+		<Layout title={ __( 'Key Metrics', 'google-site-kit' ) } header rounded>
 			<div className="googlesitekit-settings-module googlesitekit-settings-module--active googlesitekit-settings-user-input">
 				<SettingsKeyMetrics />
 
